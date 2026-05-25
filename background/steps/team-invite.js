@@ -215,6 +215,28 @@
     return { success: false, status: resp.status, message: 'HTTP ' + resp.status + ': ' + bodyText.slice(0, 200) };
   }
 
+  async function allocateViaCpa(cpaUrl, cpaKey, accessToken, did, proxy, timeoutMs) {
+    var origin = cpaUrl.replace(/\/+$/, '');
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, timeoutMs || 60000);
+    try {
+      var resp = await fetch(origin + '/api/team/sys-allocate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + cpaKey,
+        },
+        body: JSON.stringify({ access_token: accessToken, did: did, proxy: proxy || '' }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      return await resp.json();
+    } catch (e) {
+      clearTimeout(timer);
+      throw e;
+    }
+  }
+
   async function exchangeCodeForTokens(code, codeVerifier) {
     var body = new URLSearchParams({
       grant_type: 'authorization_code',
@@ -517,14 +539,58 @@
         }
       }
 
-      // ── Phase 2: Acquire refresh_token via browser tab ──
+      // ── Phase 2: Acquire refresh_token ──
+      // 优先走 CPA sys_node_allocate，失败则 fallback 到 tab OAuth
 
       var tokenResult = null;
-      try {
-        tokenResult = await acquireRefreshTokenViaTab(state, chrome, addLog, sleepWithStop);
-      } catch (tokenError) {
-        await addLog('Team 邀请：凭证获取失败：' + tokenError.message, 'warn');
-        await addLog('Team 邀请：将回退到浏览器 OAuth 流程获取凭证。', 'info');
+
+      // Phase 2a: CPA sys-allocate
+      var cpaUrl = normalizeString(state.vpsUrl);
+      var cpaKey = normalizeString(state.vpsPassword);
+      var proxy = normalizeString(state.proxy || state.ipProxy || '');
+
+      if (inviteeToken && cpaUrl && cpaKey) {
+        var did = '';
+        try { did = await getDidFromCookies(chrome); } catch (_) {}
+
+        if (did) {
+          await addLog('Team 邀请：正在通过 CPA sys_node_allocate 分配团队并获取凭证...', 'info');
+          try {
+            var cpaResult = await allocateViaCpa(cpaUrl, cpaKey, inviteeToken, did, proxy, 90000);
+            if (cpaResult && cpaResult.status === 'success' && cpaResult.data) {
+              var d = cpaResult.data;
+              if (d.refresh_token) {
+                tokenResult = {
+                  accessToken: d.access_token || '',
+                  refreshToken: d.refresh_token,
+                  email: d.email || state.email || '',
+                  teamTokenAcquired: true,
+                };
+                await addLog('Team 邀请：CPA sys_node_allocate 成功，refresh_token 获取成功！', 'ok');
+              } else {
+                await addLog('Team 邀请：CPA 返回成功但缺少 refresh_token：' + (cpaResult.message || ''), 'warn');
+              }
+            } else {
+              await addLog('Team 邀请：CPA sys_node_allocate 失败：' + ((cpaResult && cpaResult.message) || '未知错误'), 'warn');
+            }
+          } catch (cpaErr) {
+            await addLog('Team 邀请：CPA 调用异常：' + cpaErr.message, 'warn');
+          }
+        } else {
+          await addLog('Team 邀请：未获取到 did，跳过 CPA sys_node_allocate。', 'warn');
+        }
+      }
+
+      // Phase 2b: Fallback to tab-based OAuth
+      if (!tokenResult) {
+        if (!inviteeToken || !cpaUrl || !cpaKey) {
+          await addLog('Team 邀请：CPA 未配置或无 accessToken，尝试浏览器 OAuth...', 'info');
+        }
+        try {
+          tokenResult = await acquireRefreshTokenViaTab(state, chrome, addLog, sleepWithStop);
+        } catch (tokenError) {
+          await addLog('Team 邀请：浏览器 OAuth 也失败：' + tokenError.message, 'warn');
+        }
       }
 
       var completionPayload = {
