@@ -4702,9 +4702,7 @@ async function checkOutlookAliasSubscriptionUsage(account = {}, aliasEmail = '')
 async function ensureOutlookAliasForHotmailAccount(account = {}, options = {}) {
   const state = await getState();
   if (!Boolean(state?.hotmailAliasEnabled) || Boolean(state?.hotmailFissionEnabled)) {
-    const baseEmail = String(account?.email || '').trim();
-    await setEmailState(baseEmail || null, { source: 'hotmail-base-email' });
-    return baseEmail;
+    return String(account?.email || '').trim();
   }
   const currentEmail = String(state.email || '').trim();
   if (
