@@ -14431,6 +14431,9 @@ function getStepRegistryForState(state = {}) {
   if (getPanelMode(state) === 'local-cpa-json-no-rt') {
     return localCpaJsonNoRtStepRegistry;
   }
+  if (Boolean(state?.teamInviteEnabled)) {
+    return buildStepRegistry(getStepDefinitionsForState(state));
+  }
   const signupMethod = getSignupMethodForStepDefinitions(state);
   const useBoundEmailRelogin = signupMethod === SIGNUP_METHOD_PHONE
     && Boolean(state?.phoneSignupReloginAfterBindEmailEnabled);
