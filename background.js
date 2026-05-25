@@ -13976,6 +13976,8 @@ const teamInviteExecutor = self.MultiPageBackgroundTeamInvite?.createTeamInviteE
   completeNodeFromBackground,
   getState,
   sleepWithStop,
+  chrome,
+  setState,
 });
 const teamRemoveExecutor = self.MultiPageBackgroundTeamRemove?.createTeamRemoveExecutor({
   addLog,
@@ -14210,15 +14212,35 @@ const stepExecutorsByKey = {
   'plus-checkout-return': (state) => plusReturnConfirmExecutor.executePlusReturnConfirm(state),
   'sub2api-session-import': (state) => sub2ApiSessionImportExecutor.executeSub2ApiSessionImport(state),
   'cpa-session-import': (state) => cpaSessionImportExecutor.executeCpaSessionImport(state),
-  'oauth-login': (state) => step7Executor.executeStep7(state),
-  'fetch-login-code': (state) => step8Executor.executeStep8(state),
-  'post-login-phone-verification': (state) => step8Executor.executePostLoginPhoneVerification(state),
+  'oauth-login': (state) => {
+    if (Boolean(state?.teamInviteEnabled && state?.teamTokenAcquired)) {
+      return completeNodeFromBackground('oauth-login', { skippedByTeamToken: true });
+    }
+    return step7Executor.executeStep7(state);
+  },
+  'fetch-login-code': (state) => {
+    if (Boolean(state?.teamInviteEnabled && state?.teamTokenAcquired)) {
+      return completeNodeFromBackground('fetch-login-code', { skippedByTeamToken: true });
+    }
+    return step8Executor.executeStep8(state);
+  },
+  'post-login-phone-verification': (state) => {
+    if (Boolean(state?.teamInviteEnabled && state?.teamTokenAcquired)) {
+      return completeNodeFromBackground('post-login-phone-verification', { skippedByTeamToken: true });
+    }
+    return step8Executor.executePostLoginPhoneVerification(state);
+  },
   'bind-email': (state) => step8Executor.executeBindEmail(state),
   'fetch-bind-email-code': (state) => step8Executor.executeFetchBindEmailCode(state),
   'relogin-bound-email': (state) => executeReloginBoundEmail(state),
   'fetch-bound-email-login-code': (state) => step8Executor.executeBoundEmailLoginCode(state),
   'post-bound-email-phone-verification': (state) => step8Executor.executeBoundEmailPostLoginPhoneVerification(state),
-  'confirm-oauth': (state) => step9Executor.executeStep9(state),
+  'confirm-oauth': (state) => {
+    if (Boolean(state?.teamInviteEnabled && state?.teamTokenAcquired)) {
+      return completeNodeFromBackground('confirm-oauth', { skippedByTeamToken: true });
+    }
+    return step9Executor.executeStep9(state);
+  },
   'platform-verify': (state) => executeStep10(state),
   'team-invite': (state) => teamInviteExecutor.executeTeamInvite(state),
   'team-remove': (state) => teamRemoveExecutor.executeTeamRemove(state),

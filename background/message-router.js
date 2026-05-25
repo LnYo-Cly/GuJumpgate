@@ -772,6 +772,21 @@
         return;
       }
 
+      if (stepKey === 'team-invite') {
+        const teamUpdates = {};
+        if (payload.teamTokenAcquired) {
+          teamUpdates.teamTokenAcquired = true;
+          if (payload.teamAccessToken) teamUpdates.accessToken = payload.teamAccessToken;
+          if (payload.teamRefreshToken) teamUpdates.refreshToken = payload.teamRefreshToken;
+        }
+        if (payload.teamInviteSent !== undefined) teamUpdates.teamInviteSent = payload.teamInviteSent;
+        if (payload.teamInviteStatus) teamUpdates.teamInviteStatus = payload.teamInviteStatus;
+        if (Object.keys(teamUpdates).length) {
+          await setState(teamUpdates);
+        }
+        return;
+      }
+
       if (stepKey === 'platform-verify') {
         await handlePlatformVerifyStepData(payload);
         return;
