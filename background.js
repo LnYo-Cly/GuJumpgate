@@ -1154,6 +1154,8 @@ const PERSISTED_SETTING_DEFAULTS = {
   teamAccessToken: '',
   teamRefreshToken: '',
   teamWorkspaceId: '',
+  regToolUrl: '',
+  regToolToken: '',
 };
 
 const PERSISTED_SETTING_KEYS = Object.keys(PERSISTED_SETTING_DEFAULTS);
@@ -3407,6 +3409,8 @@ function normalizePersistentSettingValue(key, value) {
       return Boolean(value);
     case 'teamRefreshToken':
     case 'teamWorkspaceId':
+    case 'regToolUrl':
+    case 'regToolToken':
       return String(value || '');
     default:
       return value;

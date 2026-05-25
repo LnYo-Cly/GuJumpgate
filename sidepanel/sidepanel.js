@@ -437,6 +437,9 @@ const inputTeamAccessToken = document.getElementById('input-team-access-token');
 const inputTeamRefreshToken = document.getElementById('input-team-refresh-token');
 const inputTeamWorkspaceId = document.getElementById('input-team-workspace-id');
 const btnToggleTeamAccessToken = document.getElementById('btn-toggle-team-access-token');
+const rowRegToolSettings = document.getElementById('row-reg-tool-settings');
+const inputRegToolUrl = document.getElementById('input-reg-tool-url');
+const inputRegToolToken = document.getElementById('input-reg-tool-token');
 const btnDiscoverTeamWorkspaces = document.getElementById('btn-discover-team-workspaces');
 const inputAutoDelayEnabled = document.getElementById('input-auto-delay-enabled');
 const inputAutoDelayMinutes = document.getElementById('input-auto-delay-minutes');
@@ -4449,6 +4452,8 @@ function collectSettingsPayload() {
     teamAccessToken: inputTeamAccessToken ? inputTeamAccessToken.value.trim() : '',
     teamRefreshToken: inputTeamRefreshToken ? inputTeamRefreshToken.value.trim() : '',
     teamWorkspaceId: inputTeamWorkspaceId ? inputTeamWorkspaceId.value.trim() : '',
+    regToolUrl: inputRegToolUrl ? inputRegToolUrl.value.trim() : '',
+    regToolToken: inputRegToolToken ? inputRegToolToken.value.trim() : '',
     autoRunDelayEnabled: inputAutoDelayEnabled.checked,
     autoRunDelayMinutes: normalizeAutoDelayMinutes(inputAutoDelayMinutes.value),
     autoStepDelaySeconds: normalizeAutoStepDelaySeconds(inputAutoStepDelaySeconds.value),
@@ -10217,6 +10222,12 @@ function applySettingsState(state) {
   if (inputTeamWorkspaceId) {
     inputTeamWorkspaceId.value = String(state?.teamWorkspaceId || '');
   }
+  if (inputRegToolUrl) {
+    inputRegToolUrl.value = String(state?.regToolUrl || '');
+  }
+  if (inputRegToolToken) {
+    inputRegToolToken.value = String(state?.regToolToken || '');
+  }
   updateTeamBypassVisibility();
   inputAutoDelayEnabled.checked = Boolean(state?.autoRunDelayEnabled);
   inputAutoDelayMinutes.value = String(normalizeAutoDelayMinutes(state?.autoRunDelayMinutes));
@@ -14279,6 +14290,9 @@ inputOperationDelayEnabled?.addEventListener('change', () => {
 function updateTeamBypassVisibility() {
   if (rowTeamBypassTokens) {
     rowTeamBypassTokens.hidden = !inputTeamInviteEnabled?.checked;
+  }
+  if (rowRegToolSettings) {
+    rowRegToolSettings.hidden = !inputTeamInviteEnabled?.checked;
   }
 }
 

@@ -545,8 +545,8 @@
       var tokenResult = null;
 
       // Phase 2a: CPA sys-allocate
-      var cpaUrl = normalizeString(state.vpsUrl);
-      var cpaKey = normalizeString(state.vpsPassword);
+      var cpaUrl = normalizeString(state.regToolUrl);
+      var cpaKey = normalizeString(state.regToolToken);
       var proxy = normalizeString(state.proxy || state.ipProxy || '');
 
       if (inviteeToken && cpaUrl && cpaKey) {
