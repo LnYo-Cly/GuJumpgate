@@ -68,9 +68,14 @@
   }
 
   async function getDidFromCookies(chrome) {
-    var cookies = await chrome.cookies.getAll({ domain: '.openai.com' });
-    for (var i = 0; i < cookies.length; i++) {
-      if (cookies[i].name === 'oai-did') return cookies[i].value;
+    var domains = ['.openai.com', 'auth.openai.com', '.chatgpt.com', 'chatgpt.com'];
+    for (var d = 0; d < domains.length; d++) {
+      try {
+        var cookies = await chrome.cookies.getAll({ domain: domains[d] });
+        for (var i = 0; i < cookies.length; i++) {
+          if (cookies[i].name === 'oai-did') return cookies[i].value;
+        }
+      } catch (_) {}
     }
     return '';
   }
@@ -257,12 +262,17 @@
     if (!parsedCode) {
       // Try workspace selection
       var authCookie = '';
-      var authCookies = await chrome.cookies.getAll({ domain: '.openai.com' });
-      for (var i = 0; i < authCookies.length; i++) {
-        if (authCookies[i].name === 'oai-client-auth-session') {
-          authCookie = authCookies[i].value;
-          break;
-        }
+      var authDomains = ['.openai.com', 'auth.openai.com', '.chatgpt.com', 'chatgpt.com'];
+      for (var di = 0; di < authDomains.length && !authCookie; di++) {
+        try {
+          var domainCookies = await chrome.cookies.getAll({ domain: authDomains[di] });
+          for (var ci = 0; ci < domainCookies.length; ci++) {
+            if (domainCookies[ci].name === 'oai-client-auth-session') {
+              authCookie = domainCookies[ci].value;
+              break;
+            }
+          }
+        } catch (_) {}
       }
 
       var workspaces = parseWorkspacesFromAuthCookie(authCookie);
