@@ -2026,15 +2026,17 @@
             }
             const data = await resp.json();
             const workspaces = [];
-            const accounts = data?.accounts || data?.account_ordering || [];
-            for (const acc of accounts) {
-              const account = acc?.account || acc;
+            const accountsObj = data?.accounts || {};
+            const accountOrdering = data?.account_ordering || Object.keys(accountsObj);
+            for (const accountId of accountOrdering) {
+              const entry = accountsObj[accountId];
+              const account = entry?.account || entry || {};
               if (account?.is_deactivated) continue;
               const planType = String(account?.plan_type || '').toLowerCase();
               if (planType === 'team' || planType === 'chatgptteam' || account?.team) {
                 workspaces.push({
-                  id: account?.account_id,
-                  name: account?.name || account?.account_id,
+                  id: account?.account_id || accountId,
+                  name: account?.name || account?.account_id || accountId,
                   planType,
                 });
               }
