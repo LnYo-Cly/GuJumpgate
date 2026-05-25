@@ -51,7 +51,7 @@
     const resp = await fetch(CHATGPT_API + '/accounts/' + encodeURIComponent(workspaceId) + '/invites', {
       method: 'POST',
       headers: buildAuthHeaders(accessToken, workspaceId),
-      body: JSON.stringify({ email_addresses: [email], role: 'standard-user', resend_emails: true }),
+      body: JSON.stringify({ email_addresses: [email], role: 'standard-user', seat_type: 'usage_based', resend_emails: true }),
     });
     if (resp.status === 200 || resp.status === 201) {
       return { success: true, status: 'invited', message: '邀请已发送' };
