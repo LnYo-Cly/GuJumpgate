@@ -14378,6 +14378,19 @@ selectPlusPaymentMethod?.addEventListener('change', () => {
   saveSettings({ silent: true }).catch(() => { });
 });
 
+inputTeamAccessToken?.addEventListener('change', () => {
+  markSettingsDirty(true);
+  saveSettings({ silent: true }).catch(() => { });
+});
+inputTeamRefreshToken?.addEventListener('change', () => {
+  markSettingsDirty(true);
+  saveSettings({ silent: true }).catch(() => { });
+});
+inputTeamWorkspaceId?.addEventListener('change', () => {
+  markSettingsDirty(true);
+  saveSettings({ silent: true }).catch(() => { });
+});
+
 btnGpcCardKeyPurchase?.addEventListener('click', () => {
   showToast('已移除默认购买入口，请自行准备和配置你的服务。', 'info');
 });
