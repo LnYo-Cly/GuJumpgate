@@ -2,15 +2,16 @@
   root.MultiPageBackgroundTeamInvite = factory();
 })(typeof self !== 'undefined' ? self : globalThis, function createTeamInviteModule() {
 
-  const CHATGPT_API = 'https://chatgpt.com/backend-api';
-  const AUTH_BASE = 'https://auth.openai.com';
-  const AUTH_TOKEN_URL = AUTH_BASE + '/oauth/token';
-  const AUTH_AUTHORIZE_URL = AUTH_BASE + '/oauth/authorize';
-  const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
-  const REDIRECT_URI = 'http://localhost:1455/auth/callback';
-  const OAUTH_SCOPE = 'openid profile email offline_access';
-  const MAX_RETRIES = 3;
-  const INVITE_PROPAGATION_DELAY_MS = 4000;
+  var CHATGPT_API = 'https://chatgpt.com/backend-api';
+  var AUTH_BASE = 'https://auth.openai.com';
+  var AUTH_TOKEN_URL = AUTH_BASE + '/oauth/token';
+  var AUTH_AUTHORIZE_URL = AUTH_BASE + '/oauth/authorize';
+  var CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
+  var REDIRECT_URI = 'http://localhost:1455/auth/callback';
+  var OAUTH_SCOPE = 'openid profile email offline_access';
+  var MAX_RETRIES = 3;
+  var INVITE_PROPAGATION_DELAY_MS = 4000;
+  var OAUTH_TAB_TIMEOUT_MS = 50000;
 
   function normalizeString(value) {
     return String(value || '').trim();
@@ -19,8 +20,8 @@
   // ── PKCE helpers ──
 
   function generateRandomString(length) {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-    const array = new Uint8Array(length);
+    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+    var array = new Uint8Array(length);
     crypto.getRandomValues(array);
     return Array.from(array, function (b) { return chars[b % chars.length]; }).join('');
   }
@@ -119,32 +120,6 @@
     return h;
   }
 
-  async function followRedirectChain(startUrl, cookieString, did, maxRedirects) {
-    var currentUrl = startUrl;
-    for (var i = 0; i < (maxRedirects || 15); i++) {
-      var resp = await fetch(currentUrl, {
-        method: 'GET',
-        redirect: 'manual',
-        headers: {
-          'Cookie': cookieString,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-          'oai-device-id': did || '',
-        },
-      });
-      if (resp.status >= 300 && resp.status < 400) {
-        var location = resp.headers.get('Location') || '';
-        if (!location) return currentUrl;
-        currentUrl = new URL(location, currentUrl).href;
-        if (currentUrl.indexOf('code=') !== -1 && currentUrl.indexOf('state=') !== -1) {
-          return currentUrl;
-        }
-        continue;
-      }
-      return currentUrl;
-    }
-    return currentUrl;
-  }
-
   // ── Token operations ──
 
   async function refreshAccessToken(refreshToken) {
@@ -216,15 +191,105 @@
     return resp.json();
   }
 
-  // ── Main token acquisition flow (pure HTTP, no browser) ──
+  // ── Workspace selection via API (single POST, no redirect chain) ──
 
-  async function acquireRefreshTokenViaHttp(state, chrome, addLog, sleepWithStop) {
-    await addLog('Team 邀请：正在通过 HTTP API 获取凭证（免浏览器 OAuth）...', 'info');
-
+  async function selectPersonalWorkspace(chrome, addLog) {
     var did = await getDidFromCookies(chrome);
-    if (!did) {
-      throw new Error('未找到 oai-did cookie，无法通过 HTTP 获取凭证');
+    var cookieString = await getCookieString(chrome, [
+      '.openai.com', 'auth.openai.com',
+      '.chatgpt.com', 'chatgpt.com',
+    ]);
+
+    var authCookie = '';
+    var authDomains = ['.openai.com', 'auth.openai.com', '.chatgpt.com', 'chatgpt.com'];
+    for (var di = 0; di < authDomains.length && !authCookie; di++) {
+      try {
+        var domainCookies = await chrome.cookies.getAll({ domain: authDomains[di] });
+        for (var ci = 0; ci < domainCookies.length; ci++) {
+          if (domainCookies[ci].name === 'oai-client-auth-session') {
+            authCookie = domainCookies[ci].value;
+            break;
+          }
+        }
+      } catch (_) {}
     }
+
+    var workspaces = parseWorkspacesFromAuthCookie(authCookie);
+    if (workspaces.length === 0) return null;
+
+    var targetWorkspaceId = '';
+    for (var j = 0; j < workspaces.length; j++) {
+      var title = String(workspaces[j].title || workspaces[j].name || '');
+      if (title.indexOf('Personal') !== -1 || title.indexOf('个人') !== -1 || workspaces[j].is_personal) {
+        targetWorkspaceId = String(workspaces[j].id || '');
+        break;
+      }
+    }
+    if (!targetWorkspaceId && workspaces.length > 0) {
+      targetWorkspaceId = String(workspaces[0].id || '');
+    }
+    if (!targetWorkspaceId) return null;
+
+    await addLog('Team 邀请：正在选择 Personal 工作区（' + targetWorkspaceId + '）...', 'info');
+
+    cookieString = await getCookieString(chrome, [
+      '.openai.com', 'auth.openai.com',
+      '.chatgpt.com', 'chatgpt.com',
+    ]);
+
+    var selectResp = await fetch(AUTH_BASE + '/api/accounts/workspace/select', {
+      method: 'POST',
+      headers: oaiHeaders(did, {
+        'Content-Type': 'application/json',
+        'Referer': AUTH_BASE + '/sign-in-with-chatgpt/codex/consent',
+        'Cookie': cookieString,
+      }),
+      body: JSON.stringify({ workspace_id: targetWorkspaceId }),
+      redirect: 'manual',
+    });
+
+    var selectData;
+    try {
+      selectData = await selectResp.json();
+    } catch (_) {
+      selectData = {};
+    }
+
+    return String(selectData.continue_url || '').trim() || null;
+  }
+
+  // ── Tab-based OAuth token acquisition ──
+  // Uses a browser tab so cookies are maintained across redirects.
+
+  function waitForCodeViaNavigation(chrome, tabId, timeoutMs) {
+    return new Promise(function (resolve) {
+      var timer = setTimeout(function () {
+        try { chrome.webNavigation.onBeforeNavigate.removeListener(onNav); } catch (_) {}
+        resolve('');
+      }, timeoutMs);
+
+      function onNav(details) {
+        if (details.tabId !== tabId || !details.url) return;
+        if (details.url.indexOf('localhost:1455') === -1) return;
+        if (details.url.indexOf('code=') === -1) return;
+
+        clearTimeout(timer);
+        try { chrome.webNavigation.onBeforeNavigate.removeListener(onNav); } catch (_) {}
+
+        try {
+          var urlObj = new URL(details.url);
+          resolve(urlObj.searchParams.get('code') || '');
+        } catch (_) {
+          resolve('');
+        }
+      }
+
+      chrome.webNavigation.onBeforeNavigate.addListener(onNav);
+    });
+  }
+
+  async function acquireRefreshTokenViaTab(state, chrome, addLog, sleepWithStop) {
+    await addLog('Team 邀请：正在通过浏览器标签获取凭证...', 'info');
 
     var codeVerifier = generateRandomString(43);
     var hashBuf = await sha256(codeVerifier);
@@ -244,108 +309,43 @@
     });
     var authUrl = AUTH_AUTHORIZE_URL + '?' + params.toString();
 
-    var cookieString = await getCookieString(chrome, [
-      '.openai.com', 'auth.openai.com',
-      '.chatgpt.com', 'chatgpt.com',
-    ]);
+    // Start listening BEFORE navigating so we don't miss early redirects
+    var tab = await chrome.tabs.create({ url: 'about:blank', active: false });
+    await addLog('Team 邀请：已创建 OAuth 标签（' + tab.id + '），正在等待回调...', 'info');
 
-    await addLog('Team 邀请：正在发起 OAuth 授权请求...', 'info');
-    var finalUrl = await followRedirectChain(authUrl, cookieString, did, 20);
+    var navPromise = waitForCodeViaNavigation(chrome, tab.id, OAUTH_TAB_TIMEOUT_MS);
 
-    // Check if we got a code= URL directly
-    var parsedCode = '';
-    try {
-      var urlObj = new URL(finalUrl);
-      parsedCode = urlObj.searchParams.get('code') || '';
-    } catch (_) {}
+    // Navigate the tab to the OAuth authorize URL
+    await chrome.tabs.update(tab.id, { url: authUrl });
 
-    if (!parsedCode) {
-      // Try workspace selection
-      var authCookie = '';
-      var authDomains = ['.openai.com', 'auth.openai.com', '.chatgpt.com', 'chatgpt.com'];
-      for (var di = 0; di < authDomains.length && !authCookie; di++) {
-        try {
-          var domainCookies = await chrome.cookies.getAll({ domain: authDomains[di] });
-          for (var ci = 0; ci < domainCookies.length; ci++) {
-            if (domainCookies[ci].name === 'oai-client-auth-session') {
-              authCookie = domainCookies[ci].value;
-              break;
-            }
-          }
-        } catch (_) {}
-      }
+    var code = await navPromise;
 
-      var workspaces = parseWorkspacesFromAuthCookie(authCookie);
-      if (workspaces.length === 0) {
-        throw new Error('OAuth 未返回 code 且无工作区信息，HTTP 凭证获取失败');
-      }
+    // If no code yet, the tab might be stuck on workspace selection.
+    // Try API-based workspace selection, then navigate tab to continue_url.
+    if (!code) {
+      await addLog('Team 邀请：OAuth 未自动回调，尝试通过 API 选择工作区后继续...', 'info');
 
-      // Select Personal workspace (like the registration tool)
-      var targetWorkspaceId = '';
-      for (var j = 0; j < workspaces.length; j++) {
-        var title = String(workspaces[j].title || workspaces[j].name || '');
-        if (title.indexOf('Personal') !== -1 || title.indexOf('个人') !== -1 || workspaces[j].is_personal) {
-          targetWorkspaceId = String(workspaces[j].id || '');
-          break;
+      try {
+        var continueUrl = await selectPersonalWorkspace(chrome, addLog);
+        if (continueUrl) {
+          var navPromise2 = waitForCodeViaNavigation(chrome, tab.id, 30000);
+          await chrome.tabs.update(tab.id, { url: continueUrl });
+          code = await navPromise2;
         }
+      } catch (wsErr) {
+        await addLog('Team 邀请：工作区选择失败：' + wsErr.message, 'warn');
       }
-      if (!targetWorkspaceId && workspaces.length > 0) {
-        targetWorkspaceId = String(workspaces[0].id || '');
-      }
-      if (!targetWorkspaceId) {
-        throw new Error('未找到可用工作区');
-      }
-
-      await addLog('Team 邀请：正在选择工作区...', 'info');
-
-      // Refresh cookies after potential redirect chain
-      cookieString = await getCookieString(chrome, [
-        '.openai.com', 'auth.openai.com',
-        '.chatgpt.com', 'chatgpt.com',
-      ]);
-
-      var selectResp = await fetch(AUTH_BASE + '/api/accounts/workspace/select', {
-        method: 'POST',
-        headers: oaiHeaders(did, {
-          'Content-Type': 'application/json',
-          'Referer': AUTH_BASE + '/sign-in-with-chatgpt/codex/consent',
-          'Cookie': cookieString,
-        }),
-        body: JSON.stringify({ workspace_id: targetWorkspaceId }),
-        redirect: 'manual',
-      });
-
-      var selectData;
-      try {
-        selectData = await selectResp.json();
-      } catch (_) {
-        selectData = {};
-      }
-
-      var continueUrl = String(selectData.continue_url || '').trim();
-      if (!continueUrl) {
-        throw new Error('workspace/select 未返回 continue_url，HTTP 凭证获取失败');
-      }
-
-      await addLog('Team 邀请：正在跟随重定向获取授权码...', 'info');
-      cookieString = await getCookieString(chrome, [
-        '.openai.com', 'auth.openai.com',
-        '.chatgpt.com', 'chatgpt.com',
-      ]);
-      finalUrl = await followRedirectChain(continueUrl, cookieString, did, 15);
-
-      try {
-        var finalUrlObj = new URL(finalUrl);
-        parsedCode = finalUrlObj.searchParams.get('code') || '';
-      } catch (_) {}
     }
 
-    if (!parsedCode) {
-      throw new Error('未能获取 OAuth authorization code');
+    // Close the OAuth tab
+    try { await chrome.tabs.remove(tab.id); } catch (_) {}
+
+    if (!code) {
+      throw new Error('浏览器 OAuth 超时，未获取到授权码');
     }
 
     await addLog('Team 邀请：已获取授权码，正在换取 refresh_token...', 'info');
-    var tokenData = await exchangeCodeForTokens(parsedCode, codeVerifier);
+    var tokenData = await exchangeCodeForTokens(code, codeVerifier);
 
     if (!tokenData.refresh_token) {
       throw new Error('Token exchange 未返回 refresh_token');
@@ -449,13 +449,13 @@
         return;
       }
 
-      // ── Phase 2: Acquire refresh_token via HTTP (no browser OAuth needed) ──
+      // ── Phase 2: Acquire refresh_token via browser tab ──
 
       var tokenResult = null;
       try {
-        tokenResult = await acquireRefreshTokenViaHttp(state, chrome, addLog, sleepWithStop);
+        tokenResult = await acquireRefreshTokenViaTab(state, chrome, addLog, sleepWithStop);
       } catch (tokenError) {
-        await addLog('Team 邀请：HTTP 凭证获取失败：' + tokenError.message, 'warn');
+        await addLog('Team 邀请：凭证获取失败：' + tokenError.message, 'warn');
         await addLog('Team 邀请：将回退到浏览器 OAuth 流程获取凭证。', 'info');
       }
 
@@ -469,7 +469,6 @@
         completionPayload.teamAccessToken = tokenResult.accessToken;
         completionPayload.teamRefreshToken = tokenResult.refreshToken;
 
-        // Save tokens to state so subsequent steps can use them
         try {
           await setState({
             refreshToken: tokenResult.refreshToken,
