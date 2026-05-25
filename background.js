@@ -2489,7 +2489,7 @@ async function markCurrentRegistrationAccountUsed(state = {}, options = {}) {
       ? latestState.hotmailAccounts.find((account) => String(account?.id || '').trim() === String(latestState.currentHotmailAccountId || '').trim())
       : null;
     const currentEmail = String(latestState.email || '').trim();
-    if (Boolean(latestState?.hotmailAliasEnabled) && existingHotmailAccount && currentEmail && isOutlookPlusAliasForAccount(currentEmail, existingHotmailAccount)) {
+    if (Boolean(latestState?.hotmailAliasEnabled || latestState?.hotmailFissionEnabled) && existingHotmailAccount && currentEmail && isOutlookPlusAliasForAccount(currentEmail, existingHotmailAccount)) {
       await setHotmailAliasUsageEntry(existingHotmailAccount, currentEmail, {
         used: true,
         lastCheckedAt: Date.now(),
@@ -4701,7 +4701,7 @@ async function checkOutlookAliasSubscriptionUsage(account = {}, aliasEmail = '')
 
 async function ensureOutlookAliasForHotmailAccount(account = {}, options = {}) {
   const state = await getState();
-  if (!Boolean(state?.hotmailAliasEnabled)) {
+  if (!Boolean(state?.hotmailAliasEnabled) || Boolean(state?.hotmailFissionEnabled)) {
     const baseEmail = String(account?.email || '').trim();
     await setEmailState(baseEmail || null, { source: 'hotmail-base-email' });
     return baseEmail;
@@ -4979,7 +4979,7 @@ async function ensureHotmailAccountForFlow(options = {}) {
   const state = await getState();
   const accounts = normalizeHotmailAccounts(state.hotmailAccounts);
   const excludedAccountIds = new Set((excludeIds || []).filter(Boolean));
-  const hotmailAliasEnabled = Boolean(state?.hotmailAliasEnabled);
+  const hotmailAliasEnabled = Boolean(state?.hotmailAliasEnabled || state?.hotmailFissionEnabled);
   const isAliasCapacityExhausted = (candidate, sourceState = state) => (
     hotmailAliasEnabled && typeof isHotmailAliasCapacityExhausted === 'function'
       ? isHotmailAliasCapacityExhausted(candidate, sourceState)
@@ -13520,6 +13520,9 @@ const signupFlowHelpers = self.MultiPageSignupFlowHelpers?.createSignupFlowHelpe
   sendToContentScriptResilient,
   setEmailState,
   setState,
+  countHotmailUsedAliases,
+  normalizeOutlookAliasMaxPerAccount,
+  setHotmailAliasUsageEntry,
   SIGNUP_ENTRY_URL,
   SIGNUP_PAGE_INJECT_FILES,
   waitForTabStableComplete,

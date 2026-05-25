@@ -986,20 +986,6 @@
         <input type="text" id="input-hotmail-local-base-url" class="data-input mono"
           placeholder="http://127.0.0.1:17373" />
       </div>
-      <div class="data-row data-check-row" id="row-hotmail-alias-enabled">
-        <span class="data-label">使用别名</span>
-        <div class="data-inline setting-pair">
-          <div class="setting-group setting-group-primary">
-            <label class="toggle-switch" for="input-hotmail-alias-enabled" title="开启后才会为 Hotmail/Outlook 基邮箱分配 +tag 别名">
-              <input type="checkbox" id="input-hotmail-alias-enabled" />
-              <span class="toggle-switch-track" aria-hidden="true">
-                <span class="toggle-switch-thumb"></span>
-              </span>
-            </label>
-          </div>
-          <span class="setting-caption">默认关闭，关闭时直接使用基邮箱</span>
-        </div>
-      </div>
       <div class="data-row data-check-row" id="row-hotmail-fission-enabled">
         <span class="data-label">邮箱裂变</span>
         <div class="data-inline setting-pair">
@@ -1015,11 +1001,11 @@
         </div>
       </div>
       <div class="data-row" id="row-outlook-alias-max">
-        <span class="data-label">别名上限</span>
+        <span class="data-label">裂变上限</span>
         <div class="data-inline">
           <input type="number" id="input-outlook-alias-max-per-account" class="data-input auto-delay-input"
-            value="5" min="1" max="50" step="1" title="每个 Hotmail/Outlook 基邮箱最多使用多少个 +tag 别名" />
-          <span class="setting-caption">每个基邮箱默认最多 5 个 +tag 别名</span>
+            value="5" min="1" max="50" step="1" title="每个基邮箱最多生成多少个 +随机串 变体" />
+          <span class="setting-caption">每个基邮箱最多生成多少个 +随机串 变体</span>
         </div>
       </div>
       <div id="hotmail-form-shell" class="account-pool-form-shell" hidden>

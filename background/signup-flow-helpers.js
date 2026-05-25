@@ -26,6 +26,9 @@
       sendToContentScriptResilient,
       setEmailState,
       setState,
+      countHotmailUsedAliases = null,
+      normalizeOutlookAliasMaxPerAccount = null,
+      setHotmailAliasUsageEntry = null,
       SIGNUP_ENTRY_URL,
       SIGNUP_PAGE_INJECT_FILES,
       waitForTabStableComplete = null,
@@ -351,7 +354,21 @@
         });
         resolvedEmail = account.registrationAliasEmail || account.email;
         if (state.hotmailFissionEnabled && typeof buildOutlookFissionEmail === 'function') {
+          const usedCount = typeof countHotmailUsedAliases === 'function'
+            ? countHotmailUsedAliases(state.hotmailAliasUsage, account) : 0;
+          const maxAliases = typeof normalizeOutlookAliasMaxPerAccount === 'function'
+            ? normalizeOutlookAliasMaxPerAccount(state.outlookAliasMaxPerAccount) : 5;
+          if (usedCount >= maxAliases) {
+            throw new Error('基邮箱 ' + account.email + ' 裂变上限已满（' + usedCount + '/' + maxAliases + '）');
+          }
           resolvedEmail = buildOutlookFissionEmail(account.email);
+          if (typeof setHotmailAliasUsageEntry === 'function') {
+            await setHotmailAliasUsageEntry(account, resolvedEmail, {
+              used: false,
+              lastCheckedAt: Date.now(),
+              reason: 'fission_generated',
+            });
+          }
         }
       } else if (isLuckmailProvider(state)) {
         const purchase = await ensureLuckmailPurchaseForFlow({ allowReuse: true });

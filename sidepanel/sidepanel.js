@@ -353,8 +353,6 @@ const rowHotmailRemoteBaseUrl = document.getElementById('row-hotmail-remote-base
 const inputHotmailRemoteBaseUrl = document.getElementById('input-hotmail-remote-base-url');
 const rowHotmailLocalBaseUrl = document.getElementById('row-hotmail-local-base-url');
 const inputHotmailLocalBaseUrl = document.getElementById('input-hotmail-local-base-url');
-const rowHotmailAliasEnabled = document.getElementById('row-hotmail-alias-enabled');
-const inputHotmailAliasEnabled = document.getElementById('input-hotmail-alias-enabled');
 const inputHotmailFissionEnabled = document.getElementById('input-hotmail-fission-enabled');
 const rowOutlookAliasMax = document.getElementById('row-outlook-alias-max');
 const inputOutlookAliasMaxPerAccount = document.getElementById('input-outlook-alias-max-per-account');
@@ -4415,9 +4413,6 @@ function collectSettingsPayload() {
     hotmailServiceMode: getSelectedHotmailServiceMode(),
     hotmailRemoteBaseUrl: inputHotmailRemoteBaseUrl.value.trim(),
     hotmailLocalBaseUrl: inputHotmailLocalBaseUrl.value.trim(),
-    hotmailAliasEnabled: typeof inputHotmailAliasEnabled !== 'undefined' && inputHotmailAliasEnabled
-      ? normalizeHotmailAliasEnabledValue(inputHotmailAliasEnabled.checked)
-      : false,
     hotmailFissionEnabled: inputHotmailFissionEnabled ? Boolean(inputHotmailFissionEnabled.checked) : false,
     outlookAliasMaxPerAccount: typeof inputOutlookAliasMaxPerAccount !== 'undefined' && inputOutlookAliasMaxPerAccount
       ? normalizeOutlookAliasMaxPerAccount(inputOutlookAliasMaxPerAccount.value)
@@ -10181,9 +10176,6 @@ function applySettingsState(state) {
   setHotmailServiceMode(state?.hotmailServiceMode);
   inputHotmailRemoteBaseUrl.value = state?.hotmailRemoteBaseUrl || '';
   inputHotmailLocalBaseUrl.value = state?.hotmailLocalBaseUrl || '';
-  if (typeof inputHotmailAliasEnabled !== 'undefined' && inputHotmailAliasEnabled) {
-    inputHotmailAliasEnabled.checked = normalizeHotmailAliasEnabledValue(state?.hotmailAliasEnabled);
-  }
   if (inputHotmailFissionEnabled) {
     inputHotmailFissionEnabled.checked = Boolean(state?.hotmailFissionEnabled);
   }
@@ -11665,16 +11657,9 @@ function updateMailProviderUI() {
   if (rowHotmailLocalBaseUrl) {
     rowHotmailLocalBaseUrl.style.display = useHotmail && hotmailServiceMode === HOTMAIL_SERVICE_MODE_LOCAL ? '' : 'none';
   }
-  const hotmailAliasEnabled = Boolean(
-    typeof inputHotmailAliasEnabled !== 'undefined' && inputHotmailAliasEnabled
-      ? inputHotmailAliasEnabled.checked
-      : latestState?.hotmailAliasEnabled
-  );
-  if (typeof rowHotmailAliasEnabled !== 'undefined' && rowHotmailAliasEnabled) {
-    rowHotmailAliasEnabled.style.display = useHotmail ? '' : 'none';
-  }
+  const fissionEnabled = Boolean(inputHotmailFissionEnabled?.checked);
   if (typeof rowOutlookAliasMax !== 'undefined' && rowOutlookAliasMax) {
-    rowOutlookAliasMax.style.display = useHotmail && hotmailAliasEnabled ? '' : 'none';
+    rowOutlookAliasMax.style.display = useHotmail && fissionEnabled ? '' : 'none';
   }
   btnFetchEmail.hidden = useHotmail || useLuckmail || useCustomEmail || useCustomEmailPool;
   inputEmail.readOnly = useHotmail || useLuckmail;
@@ -16101,7 +16086,7 @@ inputOutlookAliasMaxPerAccount?.addEventListener('blur', () => {
   saveSettings({ silent: true }).catch(() => { });
 });
 
-inputHotmailAliasEnabled?.addEventListener('change', () => {
+inputHotmailFissionEnabled?.addEventListener('change', () => {
   updateMailProviderUI();
   markSettingsDirty(true);
   saveSettings({ silent: true }).catch(() => { });
@@ -17153,12 +17138,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.payload.hostedCheckoutSmsPoolUsage !== undefined || message.payload.hostedCheckoutCurrentSmsEntry !== undefined) {
         queueHostedSmsPoolRefresh();
       }
-      if (message.payload.hotmailAliasEnabled !== undefined && inputHotmailAliasEnabled) {
-        inputHotmailAliasEnabled.checked = Boolean(message.payload.hotmailAliasEnabled);
-        updateMailProviderUI();
-      }
       if (message.payload.hotmailFissionEnabled !== undefined && inputHotmailFissionEnabled) {
         inputHotmailFissionEnabled.checked = Boolean(message.payload.hotmailFissionEnabled);
+        updateMailProviderUI();
       }
       if (message.payload.outlookAliasMaxPerAccount !== undefined && inputOutlookAliasMaxPerAccount) {
         inputOutlookAliasMaxPerAccount.value = String(
