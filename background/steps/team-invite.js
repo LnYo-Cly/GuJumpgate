@@ -171,6 +171,50 @@
     return { success: false, status: 'failed', message: 'HTTP ' + resp.status + ': ' + bodyText.slice(0, 200) };
   }
 
+  async function getInviteeAccessToken(chrome, addLog) {
+    var tabs = await chrome.tabs.query({ url: '*://chatgpt.com/*' });
+    if (!tabs || !tabs.length) {
+      throw new Error('未找到 ChatGPT 标签页');
+    }
+
+    for (var i = 0; i < tabs.length; i++) {
+      try {
+        var results = await chrome.scripting.executeScript({
+          target: { tabId: tabs[i].id },
+          func: function () {
+            return fetch('/api/auth/session', { credentials: 'include' })
+              .then(function (r) { return r.json().catch(function () { return {}; }).then(function (s) { return { ok: r.ok, accessToken: String(s.accessToken || '').trim() }; }); });
+          },
+        });
+        var result = results && results[0] && results[0].result;
+        if (result && result.accessToken) {
+          return result.accessToken;
+        }
+      } catch (_) {}
+    }
+
+    throw new Error('无法从 ChatGPT 页面获取 accessToken');
+  }
+
+  async function acceptInvite(accessToken, workspaceId) {
+    var resp = await fetch(CHATGPT_API + '/accounts/' + encodeURIComponent(workspaceId) + '/invites/accept', {
+      method: 'POST',
+      headers: buildAuthHeaders(accessToken, workspaceId),
+      body: JSON.stringify({}),
+    });
+    if (resp.status === 200 || resp.status === 201 || resp.status === 204) {
+      return { success: true };
+    }
+    var bodyText = await resp.text().catch(function () { return ''; });
+    if (resp.status === 404) {
+      return { success: false, status: 404, message: '邀请不存在或已过期' };
+    }
+    if (resp.status === 401 || resp.status === 403) {
+      return { success: false, status: resp.status, message: 'invitee token 无效或已过期' };
+    }
+    return { success: false, status: resp.status, message: 'HTTP ' + resp.status + ': ' + bodyText.slice(0, 200) };
+  }
+
   async function exchangeCodeForTokens(code, codeVerifier) {
     var body = new URLSearchParams({
       grant_type: 'authorization_code',
@@ -449,6 +493,30 @@
         return;
       }
 
+      // ── Phase 1.5: Accept the invite using invitee's session ──
+
+      var inviteeToken = '';
+      try {
+        inviteeToken = await getInviteeAccessToken(chrome, addLog);
+        await addLog('Team 邀请：已获取注册账号的 accessToken，正在接受邀请...', 'info');
+      } catch (tokenErr) {
+        await addLog('Team 邀请：获取注册账号 accessToken 失败：' + tokenErr.message, 'warn');
+      }
+
+      if (inviteeToken) {
+        try {
+          var acceptResult = await acceptInvite(inviteeToken, workspaceId);
+          if (acceptResult.success) {
+            await addLog('Team 邀请：邀请已接受，账号已加入 Team 工作区！', 'ok');
+            await sleepWithStop(2000);
+          } else {
+            await addLog('Team 邀请：接受邀请失败：' + acceptResult.message, 'warn');
+          }
+        } catch (acceptErr) {
+          await addLog('Team 邀请：接受邀请异常：' + acceptErr.message, 'warn');
+        }
+      }
+
       // ── Phase 2: Acquire refresh_token via browser tab ──
 
       var tokenResult = null;
@@ -464,6 +532,11 @@
         teamInviteStatus: lastResult.status,
       };
 
+      if (inviteeToken) {
+        completionPayload.teamInviteAccepted = true;
+        completionPayload.inviteeAccessToken = inviteeToken;
+      }
+
       if (tokenResult) {
         completionPayload.teamTokenAcquired = true;
         completionPayload.teamAccessToken = tokenResult.accessToken;
@@ -477,6 +550,10 @@
         } catch (setStateErr) {
           await addLog('Team 邀请：保存凭证到状态失败：' + setStateErr.message, 'warn');
         }
+      } else if (inviteeToken) {
+        try {
+          await setState({ accessToken: inviteeToken });
+        } catch (_) {}
       }
 
       await completeNodeFromBackground('team-invite', completionPayload);

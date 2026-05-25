@@ -14226,7 +14226,7 @@ const stepExecutorsByKey = {
     return step8Executor.executeStep8(state);
   },
   'post-login-phone-verification': (state) => {
-    if (Boolean(state?.teamInviteEnabled && state?.teamTokenAcquired)) {
+    if (Boolean(state?.teamInviteEnabled && (state?.teamTokenAcquired || state?.teamInviteAccepted))) {
       return completeNodeFromBackground('post-login-phone-verification', { skippedByTeamToken: true });
     }
     return step8Executor.executePostLoginPhoneVerification(state);

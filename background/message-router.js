@@ -781,6 +781,12 @@
         }
         if (payload.teamInviteSent !== undefined) teamUpdates.teamInviteSent = payload.teamInviteSent;
         if (payload.teamInviteStatus) teamUpdates.teamInviteStatus = payload.teamInviteStatus;
+        if (payload.teamInviteAccepted) {
+          teamUpdates.teamInviteAccepted = true;
+          if (payload.inviteeAccessToken && !teamUpdates.accessToken) {
+            teamUpdates.accessToken = payload.inviteeAccessToken;
+          }
+        }
         if (Object.keys(teamUpdates).length) {
           await setState(teamUpdates);
         }
